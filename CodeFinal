@@ -1,0 +1,206 @@
+# final
+import json
+import requests
+#first data pull
+tickers = ['AAPL','GOOG','ADBE', 'TSLA', 'FNCMX', 'FTIHX', 'NVDA', 'FSELX', 'DIS', 'SGD']
+# tickers = ['AAPL', 'TSLA', 'ADBE']
+
+def first_data_pull(tickers):
+    for ticker in tickers:
+        url = 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol='+ticker+'&outputsize=full&apikey=NG9C9EPVYBMTOC9'
+        #request the data
+        request = requests.get(url)
+        request_dictionary= json.loads(request.text)
+        # print(request_dictionary)
+        
+        #set up keys
+        time_key = 'Time Series (Daily)'
+        close_key = '4. close'
+        
+        file_lines = []
+        
+        #access needed info
+        with open('/home/ubuntu/environment/Final_Project/'+ticker+'.csv','w') as file:
+        
+            for date in request_dictionary[time_key].keys():
+                #save to a csv
+                file_lines.append(date + ', ' + request_dictionary[time_key][date][close_key]+ '\n')
+            #write data to file
+            file_lines = file_lines[::-1]
+            file.writelines(file_lines)
+            file.close()
+        
+    return
+
+def append_data(tickers):
+    for ticker in tickers:
+        url = 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol='+ticker+'&outputsize=full&apikey=NG9C9EPVYBMTOC9'
+        #request the data
+        request = requests.get(url)
+        request_dictionary= json.loads(request.text)
+        # print(request_dictionary)
+        
+        #set up keys
+        time_key = 'Time Series (Daily)'
+        close_key = '4. close'
+        
+        #WHERE IT STARTS TO GET DIFFERENT
+        #read in csv file
+        csv_file = open('/home/ubuntu/environment/Final_Project/' + ticker + '.csv', 'r')
+        csv_lines = csv_file.readlines()
+        csv_file.close()
+        
+        #.split on comma 
+        latest_date = csv_lines[-1].split(',')[0]
+
+        #get the new data
+        new_lines = []
+        for date in request_dictionary[time_key].keys():
+            #compare the data
+            if date == latest_date:
+                break
+            else:
+                new_lines.append(date + ', ' + request_dictionary[time_key][date][close_key]+ '\n')
+
+            #write new data to file
+            new_lines = new_lines[::-1]
+            file = open('/home/ubuntu/environment/Final_Project/' + ticker + '.csv', 'a')
+            file.writelines(new_lines)
+            file.close()
+
+#mean reversion strat function
+def meanReversion(prices):
+    i = 0
+    buy = 0 #reset to 0 when sold
+    first_buy = 0
+    MR_total_profit = 0
+    for price in prices:
+        if i > 4:
+            #5 day moving average list
+            average = (prices[i-1] + prices[i-2] + prices[i-3] + prices[i-4] + prices[i-5]) / 5
+            # print(average)
+            #compare moving average to current day
+            if price < average * 0.98 and buy == 0:
+                buy = price 
+                if first_buy == 0:
+                    first_buy = price
+                # print('Buying at: ', buy)
+            elif price > (average * 1.02) and buy != 0:
+                sell = price
+                MR_trade_profit = sell - buy
+                MR_total_profit += sell - buy
+                buy = 0
+                # print('Selling at: ', sell)
+                # print('Trade profit: ', round(MR_trade_profit, 2))
+        
+            else: 
+                pass
+                    
+        i += 1
+    MR_returns = round(MR_total_profit/first_buy , 2)
+    return MR_total_profit, MR_returns
+
+#simple moving average strat function
+def simpleMovingAverage(prices):
+    i = 0
+    buy = 0 #reset to 0 when sold
+    first_buy = 0
+    SA_total_profit = 0
+    for price in prices:
+        if i > 4:
+            #5 day moving average list
+            average = (prices[i-1] + prices[i-2] + prices[i-3] + prices[i-4] + prices[i-5]) / 5
+            # print(average)
+            #compare moving average to current day
+            if price < average and buy == 0:
+                buy = price 
+                if first_buy == 0:
+                    first_buy = price
+                # print('Buying at: ', buy)
+            elif price > average and buy != 0:
+                sell = price
+                SA_trade_profit = sell - buy
+                SA_total_profit += sell - buy
+                buy = 0
+                # print('Selling at: ', sell)
+                # print('Trade profit: ', round(SA_trade_profit, 2))
+        
+            else: 
+                pass
+                    
+        i += 1
+    SA_returns = round(SA_total_profit/first_buy , 2)
+    return SA_total_profit, SA_returns
+
+#Adjusted Mean Reversion Strat
+def adjMeanReversion(prices):
+    i = 0
+    buy = 0 #reset to 0 when sold
+    first_buy = 0
+    adjMeanReversion_total_profit = 0
+    for price in prices:
+        if i > 4:
+            #5 day moving average list
+            average = (prices[i-1] + prices[i-2] + prices[i-3] + prices[i-4] + prices[i-5]) / 5
+            # print(average)
+            #compare moving average to current day
+            if price < average * 0.95 and buy == 0:
+                buy = price 
+                if first_buy == 0:
+                    first_buy = price
+                # print('Buying at: ', buy)
+            elif price > (average * 1.05) and buy != 0:
+                sell = price
+                # adjMeanReversion_trade_profit = sell - buy
+                adjMeanReversion_total_profit += sell - buy
+                buy = 0
+                # print('Selling at: ', sell)
+                # print('Trade profit: ', round(adjMeanReversion_trade_profit, 2))
+        
+            else: 
+                pass
+                    
+        i += 1
+    adjMeanReversion_returns = round(adjMeanReversion_total_profit/first_buy , 2)
+    return adjMeanReversion_total_profit, adjMeanReversion_returns
+
+def saveResults(dictionary):
+    json.dump(dictionary, open('/home/ubuntu/environment/Final_Project/results.json', 'w'), indent = 4)
+    return
+
+results = {}
+highestProfit = 0
+bestTicker = ''
+bestStrat = ''
+
+# first_data_pull(tickers)
+append_data(tickers)
+
+for ticker in tickers:
+    ticker_results = {}
+    file = open('/home/ubuntu/environment/Final_Project/' + ticker + '.csv', 'r')
+    prices = [round(float(line.split(',')[1].strip()), 2) for line in file.readlines()]
+    
+    MR_total_profits, MR_returns = meanReversion(prices)
+    SA_total_profits, SA_returns = simpleMovingAverage(prices)
+    adjMeanReversion_profit, adjMeanReversion_return = adjMeanReversion(prices)
+    
+    if MR_total_profits > highestProfit:
+        highestProfit = MR_total_profits
+        bestTicker = ticker
+        bestStrat = 'Mean Reversion'
+    if SA_total_profits > highestProfit:
+        highestProfit = SA_total_profits
+        bestTicker = ticker
+        bestStrat = "Simple Moving Average"
+    if adjMeanReversion_profit > highestProfit:
+        highestProfit = adjMeanReversion_profit
+        bestTicker = ticker
+        bestStrat = "Adjusted Mean Reversion"
+        
+results['Highest Profit'] = highestProfit
+results['Best Ticker'] = ticker
+results["Best Strat"] = bestStrat
+
+print('Results: ', results)
+saveResults(results)
